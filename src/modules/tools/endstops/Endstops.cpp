@@ -642,6 +642,36 @@ void Endstops::home(axis_bitmap_t a)
     if(!home_z_first) home_xy();
 
     if(axis_to_home[Z_AXIS]) {
+        if(debounced_get(&(homing_axis[Z_AXIS].pin_info->pin)))
+        {
+            this->status = MOVING_BACK;
+
+            float delta[3] {0, 0, homing_axis[Z_AXIS].max_travel}; // we go the max z
+            THEROBOT->delta_move(delta, homing_axis[Z_AXIS].fast_rate, 3);
+            
+            // Wait for the switch to clear
+            unsigned int debounce = 0;
+            while (debounce <= debounce_count) {
+                if (!homing_axis[Z_AXIS].pin_info->pin.get()) {
+                    debounce++;
+                }
+                else {
+                    debounce = 0;
+                }
+
+
+                THEKERNEL->call_event(ON_IDLE);
+
+                // check if on_halt (eg kill)
+                if(THEKERNEL->is_halted()) return;
+            }
+
+            if (STEPPER[Z_AXIS]->is_moving())
+                STEPPER[Z_AXIS]->stop_moving();
+                
+            this->status = MOVING_TO_ENDSTOP_FAST;
+        }
+
         // now home z
         float delta[3] {0, 0, homing_axis[Z_AXIS].max_travel}; // we go the max z
         if(homing_axis[Z_AXIS].home_direction) delta[Z_AXIS]= -delta[Z_AXIS];
